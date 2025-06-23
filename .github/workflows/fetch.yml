@@ -1,0 +1,29 @@
+name: Fetch Brawl Stars Leaderboards
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 4 * *'  # Runs on the 4th day of each month at 12:00 UTC
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install dotenv node-fetch @supabase/supabase-js
+
+      - name: Run fetch script
+        env:
+          BRAWL_API_KEY: ${{ secrets.BRAWL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node fetch_leaderboards.js
