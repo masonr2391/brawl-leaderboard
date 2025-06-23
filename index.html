@@ -2,17 +2,67 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Brawler Leaderboards</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Brawl Stars Leaderboard Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .dropdowns {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+
+    th {
+      background-color: #eee;
+    }
+  </style>
 </head>
 <body>
-  <h1>Brawler Leaderboards by Season</h1>
-  <select id="seasonSelect"></select>
-  <select id="brawlerSelect"></select>
+  <h1>Brawl Stars Leaderboard Tracker</h1>
+
+  <div class="dropdowns">
+    <label for="seasonSelect">Select Season:</label>
+    <select id="seasonSelect"></select>
+
+    <label for="brawlerSelect">Select Brawler:</label>
+    <select id="brawlerSelect"></select>
+  </div>
+
   <table id="leaderboardTable">
-    <thead><tr><th>Rank</th><th>Name</th><th>Trophies</th></tr></thead>
-    <tbody></tbody>
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Player Name</th>
+        <th>Trophies</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="3">Please select a brawler and season.</td></tr>
+    </tbody>
   </table>
+
   <script src="script.js"></script>
 </body>
 </html>
