@@ -1,8 +1,19 @@
 const SUPABASE_URL = 'https://ymqtgsleywpsdfardrle.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltcXRnc2xleXdwc2RmYXJkcmxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2MzY2NzksImV4cCI6MjA2NjIxMjY3OX0.QzE_pTFsUwUQM-17QLIw5FGD_4hR2INCx0k_IYHDIfU';
+const SUPABASE_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjI4YmYxZTQ2LTEwN2YtNDg2OS1hNGYxLTRhNzlhYzM2NTljMSIsImlhdCI6MTc1MDYzODI2Mywic3ViIjoiZGV2ZWxvcGVyLzc4M2MwYjE2LTMwYjItZDA0Yy0zN2FhLWI4YmY5MmE4MjE0YyIsInNjb3BlcyI6WyJicmF3bHN0YXJzIl0sImxpbWl0cyI6W3sidGllciI6ImRldmVsb3Blci9zaWx2ZXIiLCJ0eXBlIjoidGhyb3R0bGluZyJ9LHsiY2lkcnMiOlsiNjYuMjIyLjI0MS4xIl0sInR5cGUiOiJjbGllbnQifV19.ZMlv8rPhQDWtpqSml49UccXpPxglji2EehpSrkfLTocrZpVD6LzVJOwxqzSDT62xkTJaUkaT7QtD8krUke75sw';
 
-// You can replace this hardcoded season list later
-const SEASON_LIST = ['2025-06'];
+async function getSeasons() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/leaderboards?select=season_date&distinct=season_date`, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  const data = await res.json();
+  return data
+    .map(r => new Date(r.season_date))
+    .sort((a, b) => b - a)
+    .map(d => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+}
 
 async function getBrawlers() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/brawlers?select=id,name&order=name.asc`, {
@@ -14,46 +25,53 @@ async function getBrawlers() {
   return await res.json();
 }
 
-async function fetchData(season, brawlerId) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/leaderboards?season=eq.${season}&brawler_id=eq.${brawlerId}&select=*`, {
+async function fetchData(seasonDateFormatted, brawlerId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/leaderboards?brawler_id=eq.${brawlerId}&select=*`, {
     headers: {
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${SUPABASE_KEY}`
     }
   });
-  return await res.json();
+  const all = await res.json();
+
+  // Find only entries that match the display label of the dropdown
+  return all.filter(row => {
+    const d = new Date(row.season_date);
+    const label = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return label === seasonDateFormatted;
+  });
 }
 
 function loadTable(data) {
   const tbody = document.querySelector("#leaderboardTable tbody");
   tbody.innerHTML = "";
-  if (data.length === 0) {
+  if (!data.length) {
     tbody.innerHTML = "<tr><td colspan='3'>No data available.</td></tr>";
     return;
   }
-  data.forEach(row => {
+  data.forEach(r => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${row.rank}</td><td>${row.player_name}</td><td>${row.trophies}</td>`;
+    tr.innerHTML = `<td>${r.rank}</td><td>${r.player_name}</td><td>${r.trophies}</td>`;
     tbody.appendChild(tr);
   });
 }
 
 async function setupDropdowns() {
   const seasonSelect = document.getElementById("seasonSelect");
-  SEASON_LIST.forEach(season => {
+  const brawlerSelect = document.getElementById("brawlerSelect");
+  const [seasons, brawlers] = await Promise.all([getSeasons(), getBrawlers()]);
+  
+  seasons.forEach(season => {
     const opt = document.createElement("option");
     opt.value = season;
-    opt.innerText = season;
+    opt.textContent = `Season started ${season}`;
     seasonSelect.appendChild(opt);
   });
-
-  const brawlerSelect = document.getElementById("brawlerSelect");
-  const brawlers = await getBrawlers();
 
   brawlers.forEach(b => {
     const opt = document.createElement("option");
     opt.value = b.id;
-    opt.innerText = b.name;
+    opt.textContent = b.name;
     brawlerSelect.appendChild(opt);
   });
 
@@ -68,4 +86,4 @@ async function refresh() {
   loadTable(data);
 }
 
-setupDropdowns();
+setupDropdowns().catch(console.error);
