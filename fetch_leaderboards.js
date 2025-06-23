@@ -1,87 +1,77 @@
+require('dotenv').config();
 const fetch = require('node-fetch');
-
+const { createClient } = require('@supabase/supabase-js');
 
 const BRAWL_API_KEY = process.env.BRAWL_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 📅 Find first Thursday of this month (season start)
-function getSeasonStart() {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), 1);
-  while (d.getDay() !== 4) d.setDate(d.getDate() + 1); // Thursday = 4
-  return d.toISOString().slice(0, 10); // Format: YYYY-MM-DD
-}
+const BRAWLERS = [
+  "Kaze", "Jae-Yong", "Finx", "Lumi", "Ollie", "Meeple", "Buzz Lightyear", "Juju", "Shade", "Kenji",
+  "Moe", "Clancy", "Berry", "Lily", "Draco", "Angelo", "Melodie", "Larry & Lawrie", "Kit", "Mico",
+  "Charlie", "Chuck", "Pearl", "Doug", "Cordelius", "Hank", "Maisie", "Willow", "R-T", "Mandy",
+  "Gray", "Chester", "Buster", "Gus", "Sam", "Otis", "Bonnie", "Janet", "Eve", "Fang", "Lola",
+  "Meg", "Ash", "Griff", "Buzz", "Grom", "Squeak", "Belle", "Stu", "Ruffs", "Edgar", "Byron", "Lou",
+  "Amber", "Colette", "Surge", "Sprout", "Nani", "Gale", "Jacky", "Max", "Mr. P", "Emz", "Bea",
+  "Sandy", "8-Bit", "Bibi", "Carl", "Rosa", "Leon", "Tick", "Gene", "Frank", "Penny", "Darryl", "Tara",
+  "Pam", "Piper", "Bo", "Poco", "Crow", "Mortis", "El Primo", "Dynamike", "Nita", "Jessie", "Barley",
+  "Spike", "Rico", "Brock", "Bull", "Colt", "Shelly"
+];
 
-async function syncBrawlers() {
-  const res = await fetch('https://api.brawlstars.com/v1/brawlers', {
-    headers: { Authorization: `Bearer ${BRAWL_API_KEY}` }
+async function fetchTop200(brawler) {
+  const url = `https://api.brawlstars.com/v1/rankings/global/brawlers/${encodeURIComponent(brawler)}?limit=200`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${BRAWL_API_KEY}`,
+    },
   });
-  const data = await res.json();
 
-  for (const b of data.items) {
-    await fetch(`${SUPABASE_URL}/rest/v1/brawlers`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify({
-        id: b.id,
-        name: b.name,
-        imageUrl: b.imageUrl,
-        released: true
-      })
-    });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to fetch ${brawler}: ${error}`);
   }
+
+  const data = await response.json();
+
+  console.log(`Data for ${brawler}:`, JSON.stringify(data, null, 2)); // DEBUG
+
+  if (!data.items || !Array.isArray(data.items)) {
+    throw new Error(`Unexpected response for ${brawler}: ${JSON.stringify(data)}`);
+  }
+
+  return data.items.map(player => ({
+    brawler,
+    name: player.name,
+    tag: player.tag,
+    trophies: player.trophies,
+    rank: player.rank,
+    timestamp: new Date().toISOString()
+  }));
 }
 
 async function uploadLeaderboard() {
-  const season_date = getSeasonStart();
+  const allData = [];
 
-  await syncBrawlers();
-
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/brawlers?select=id,name`, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`
-    }
-  });
-  const brawlers = await res.json();
-
-  for (const brawler of brawlers) {
-    console.log(`Fetching ${brawler.name}...`);
-    const res = await fetch(`https://api.brawlstars.com/v1/rankings/global/brawlers/${brawler.id}?limit=200`, {
-      headers: { Authorization: `Bearer ${BRAWL_API_KEY}` }
-    });
-    const data = await res.json();
-
-    for (let i = 0; i < data.items.length; i++) {
-      const player = data.items[i];
-      await fetch(`${SUPABASE_URL}/rest/v1/leaderboards`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal'
-        },
-        body: JSON.stringify({
-          season_date: season_date,
-          brawler_id: brawler.id,
-          brawler_name: brawler.name,
-          player_tag: player.tag,
-          player_name: player.name,
-          trophies: player.trophies,
-          rank: i + 1
-        })
-      });
+  for (const brawler of BRAWLERS) {
+    try {
+      console.log(`Fetching ${brawler}...`);
+      const players = await fetchTop200(brawler);
+      allData.push(...players);
+    } catch (error) {
+      console.error(`❌ Error fetching ${brawler}:`, error.message);
     }
   }
 
-  console.log('✅ Upload complete!');
+  console.log("Uploading to Supabase...");
+  const { error } = await supabase.from('leaderboards').insert(allData);
+
+  if (error) {
+    console.error("❌ Supabase upload failed:", error.message);
+  } else {
+    console.log("✅ Upload complete!");
+  }
 }
 
-uploadLeaderboard().catch(console.error);
+uploadLeaderboard();
